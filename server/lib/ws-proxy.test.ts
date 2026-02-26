@@ -147,6 +147,26 @@ describe('ws-proxy', () => {
       expect(reason).toContain('not allowed');
     });
 
+    it('rejects connections with disallowed path', async () => {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${proxyPort}/ws?target=${encodeURIComponent(mockGw.url + '/api/secret')}`,
+      );
+      const { code, reason } = await waitForClose(ws);
+      expect(code).toBe(1008);
+      expect(reason).toContain('path not allowed');
+    });
+
+    it('allows root path for gateway target', async () => {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${proxyPort}/ws?target=${encodeURIComponent(mockGw.url)}`,
+      );
+      const msg = await waitForMessage(ws);
+      const parsed = JSON.parse(msg);
+      expect(parsed.type).toBe('event');
+      expect(parsed.event).toBe('connect.challenge');
+      ws.close();
+    });
+
     it('accepts connections to allowed gateway target', async () => {
       const ws = new WebSocket(
         `ws://127.0.0.1:${proxyPort}/ws?target=${encodeURIComponent(mockGw.url + '/ws')}`,

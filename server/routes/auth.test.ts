@@ -29,7 +29,7 @@ describe('auth routes', () => {
       SESSION_COOKIE_NAME: 'nerve_session_3000',
     }));
     vi.doMock('../middleware/rate-limit.js', () => ({
-      rateLimitGeneral: vi.fn((_c: unknown, next: () => Promise<void>) => next()),
+      rateLimitAuth: vi.fn((_c: unknown, next: () => Promise<void>) => next()),
     }));
 
     const mod = await import('./auth.js');
@@ -71,22 +71,19 @@ describe('auth routes', () => {
       expect(res.status).toBe(400);
     });
 
-    it('accepts gateway token as password', async () => {
+    it('rejects gateway token as password', async () => {
       const app = await buildApp({ gatewayToken: 'my-secret-token' });
       const res = await app.request('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: 'my-secret-token' }),
       });
-      expect(res.status).toBe(200);
-      const json = (await res.json()) as Record<string, unknown>;
-      expect(json.ok).toBe(true);
-      // Should set a cookie
-      expect(res.headers.get('set-cookie')).toContain('nerve_session');
+      // Gateway token should NOT be accepted as a login password
+      expect(res.status).toBe(401);
     });
 
     it('returns 401 for invalid password', async () => {
-      const app = await buildApp({ gatewayToken: 'correct-token' });
+      const app = await buildApp();
       const res = await app.request('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
