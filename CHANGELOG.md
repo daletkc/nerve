@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `GET /api/voice-phrases`
   - `GET /api/voice-phrases/status`
   - `GET/PUT /api/voice-phrases/:lang`
+- Event-driven realtime chat streaming pipeline (PR #16): direct WebSocket-driven chat updates, reduced transcript polling, and recovery-aware rendering.
 - Mutex-protected env writer (`server/lib/env-file.ts`) to serialize `.env` updates.
 
 ### Changed
@@ -25,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Settings categories are now `Connection`, `Audio`, and `Appearance`.
 - Voice phrase overrides now persist as runtime state at `~/.nerve/voice-phrases.json` (configurable via `NERVE_VOICE_PHRASES_PATH`).
 - Local STT default model is now multilingual `tiny`.
+- Chat rendering now prefers event-first WebSocket updates instead of periodic full-history polling (PR #16).
+- Setup/config flow now uses one bundled consent prompt for OpenClaw gateway config patches, including `gateway.tools.allow` updates for cron management (PR #15).
 
 ### Fixed
 - Unicode-safe stop/cancel matching for non-Latin scripts (removed brittle `\b` behavior).
@@ -34,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Improved 4xx/5xx separation for language/transcribe config update failures.
 - Improved voice-phrase modal reliability (load/save error handling and request-abort race handling).
 - Accessibility: icon-only remove-phrase controls now include accessible labels.
+- `ws-proxy` now enriches `PATH` before `openclaw` CLI calls, fixing restricted RPC methods under nvm/systemd environments (PR #12).
 
 ### Documentation
 - Updated API, architecture, configuration, troubleshooting, installer notes, and README to match multilingual voice behavior and runtime config.
