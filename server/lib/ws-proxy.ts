@@ -205,6 +205,7 @@ function createGatewayRelay(
   let pendingBytes = 0;
 
   function openGateway(): void {
+    gatewayAlive = true;
     challengeNonce = null;
     handshakeComplete = false;
 
