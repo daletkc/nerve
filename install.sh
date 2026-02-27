@@ -65,6 +65,19 @@ elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then IS_FEDORA=tr
 hint() { echo -e "  ${RAIL}"; echo -e "  ${RAIL}  ${BOLD}$1${NC}"; echo -e "  ${RAIL}"; }
 cmd()  { echo -e "  ${RAIL}    ${CYAN}\$ $1${NC}"; }
 
+# Check if a port is already in use. Returns 0 if port is free, 1 if occupied.
+check_port() {
+  local port="$1"
+  if command -v ss &>/dev/null; then
+    ss -tlnH "sport = :${port}" 2>/dev/null | grep -q . && return 1
+  elif command -v lsof &>/dev/null; then
+    lsof -iTCP:"${port}" -sTCP:LISTEN -P -n &>/dev/null && return 1
+  elif command -v netstat &>/dev/null; then
+    netstat -tlnp 2>/dev/null | grep -q ":${port} " && return 1
+  fi
+  return 0
+}
+
 # Animated dots while a background process runs
 # Usage: run_with_dots "message" command arg1 arg2 ...
 # Sets RWD_EXIT to the command's exit code after completion.
@@ -631,10 +644,30 @@ generate_env_from_gateway() {
   fi
 
   if [[ -n "$gw_token" ]]; then
+    local nerve_port=3080
+    if ! check_port "$nerve_port"; then
+      if [[ "$NON_INTERACTIVE" == "true" ]]; then
+        fail "Port ${nerve_port} is already in use. Set a different PORT in .env or free the port."
+      else
+        warn "Port ${nerve_port} is already in use"
+        while true; do
+          printf "  ${RAIL}  ${CYAN}→${NC} Enter an available port: "
+          read -r nerve_port < /dev/tty || fail "Cannot read from terminal"
+          if [[ ! "$nerve_port" =~ ^[0-9]+$ ]] || (( nerve_port < 1 || nerve_port > 65535 )); then
+            warn "Invalid port number"
+            continue
+          fi
+          if check_port "$nerve_port"; then
+            break
+          fi
+          warn "Port ${nerve_port} is also in use"
+        done
+      fi
+    fi
     cat > .env <<ENVEOF
 GATEWAY_URL=http://127.0.0.1:${gw_port}
 GATEWAY_TOKEN=${gw_token}
-PORT=3080
+PORT=${nerve_port}
 ENVEOF
     ok "Generated .env from OpenClaw gateway config"
   else
