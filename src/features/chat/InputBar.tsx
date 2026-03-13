@@ -443,7 +443,7 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="cockpit-toolbar-button min-h-11 self-stretch px-3"
+          className="cockpit-toolbar-button min-h-11 self-end px-3"
           title="Attach image"
           aria-label="Attach image"
         >
@@ -454,7 +454,7 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
           disabled={isGenerating}
           aria-label={isGenerating ? "Generating response..." : "Send message"}
           aria-busy={isGenerating}
-          className={`send-btn flex min-h-11 items-center justify-center gap-2 self-stretch rounded-2xl bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-[0_16px_34px_rgba(0,0,0,0.24)] transition-transform sm:px-4 ${isGenerating ? 'cursor-not-allowed opacity-50' : 'hover:-translate-y-px hover:bg-primary/95 active:scale-95'} ${sendPulse ? 'animate-send-pulse' : ''} ${sendError ? 'animate-shake' : ''}`}
+          className={`send-btn flex min-h-11 items-center justify-center gap-2 self-end rounded-2xl bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-[0_16px_34px_rgba(0,0,0,0.24)] transition-transform sm:px-4 ${isGenerating ? 'cursor-not-allowed opacity-50' : 'hover:-translate-y-px hover:bg-primary/95 active:scale-95'} ${sendPulse ? 'animate-send-pulse' : ''} ${sendError ? 'animate-shake' : ''}`}
         >
           {isGenerating ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <ArrowUp size={16} aria-hidden="true" />}
           <span className="hidden sm:inline">{isGenerating ? 'Sending' : 'Send'}</span>
