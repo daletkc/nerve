@@ -8,6 +8,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.4.9] — 2026-03-18
+
+### Highlights
+
+**Multi-agent support expanded** — Nerve now supports multiple top-level agents, making multi-agent workflows less awkward and more flexible (PR #111).
+
+**Installer and startup flow hardened** — setup and service startup are now more resilient around edge cases and failure paths (PR #115).
+
+**UX got a broad polish pass** — cron runs, session surfacing, mobile responsiveness, and chat chrome all got tighter and more usable on real screens (PR #112, PR #113, PR #114).
+
+### Added
+- Custom workspace root support via `FILE_BROWSER_ROOT` (PR #92, thanks @jamesjmartin)
+- Server-side token injection for trusted clients (PR #109, thanks @jamesjmartin)
+- Support for multiple top-level agents (PR #111)
+
+### Changed
+- File browser now collapses responsively on mobile layouts (PR #96, thanks @jamesjmartin)
+- Shell, responsive layout, and Kanban UX refined (PR #108)
+- Cron runs, session surfacing, and general UX polished (PR #112)
+- Mobile responsiveness and connect dialog behavior hardened (PR #113)
+- Mobile chat header toggle added for smaller screens (PR #114)
+- Installer edge cases and service startup paths hardened (PR #115)
+- Composer actions aligned to the textarea baseline
+- Docs refreshed for the current gateway auth flow
+
+### Fixed
+- Inotify exhaustion prevented, with better WebSocket reconnect and subagent visibility (PR #102, thanks @DerrickBarra)
+- Invalid paths evicted from the file tree cache (PR #105, thanks @jamesjmartin)
+- Session model transcript 404s avoided (PR #107, thanks @DerrickBarra)
+- Gateway trust boundary and connection auto-connect behavior corrected
+- Infinite reconnect loops on auth failure prevented
+- `Ctrl+B` shortcut handling restored
+- `install.sh` execute permission restored
+- Connect dialog overflow fixed on smaller screens
+- Markdown list markers restored in chat bubbles
+- Operator messages now render right-aligned in chat while keeping message text left-aligned
+
+---
+
 ## [1.4.8] — 2026-03-04
 
 ### Highlights
