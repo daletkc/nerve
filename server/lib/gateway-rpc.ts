@@ -90,6 +90,8 @@ export function gatewayRpcCall(
         method: 'connect',
         params: {
           client: { id: 'nerve-rpc', mode: 'api' },
+          minProtocol: 1,
+          maxProtocol: 1,
           role: 'operator',
           scopes: ['operator.read', 'operator.write'],
           ...(token ? { auth: { token } } : {}),
