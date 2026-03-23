@@ -83,35 +83,19 @@ export function gatewayRpcCall(
     };
 
     try {
-      ws = new WebSocket(wsUrl);
+      ws = new WebSocket(wsUrl, {
+        headers: { Origin: `http://127.0.0.1:${config.port}` },
+      });
     } catch (err) {
       clearTimeout(timer);
       reject(new Error(`Failed to connect to gateway at ${wsUrl}: ${(err as Error).message}`));
       return;
     }
 
+    let connectReqId: string | null = null;
+
     ws.on('open', () => {
-      console.log(`[gateway-rpc] Connected to ${wsUrl}, sending connect...`);
-      // Step 1: Send connect with auth token
-      const connectMsg = {
-        type: 'req',
-        id: randomUUID(),
-        method: 'connect',
-        params: {
-          client: {
-            id: 'openclaw-control-ui',
-            mode: 'webchat',
-            version: '1.0.0',
-            platform: process.platform,
-          },
-          minProtocol: 1,
-          maxProtocol: 1,
-          role: 'operator',
-          scopes: ['operator.read', 'operator.write'],
-          ...(token ? { auth: { token } } : {}),
-        },
-      };
-      ws.send(JSON.stringify(connectMsg));
+      // Wait for connect.challenge before sending connect (gateway protocol)
     });
 
     ws.on('message', (data: Buffer | string) => {
@@ -119,18 +103,43 @@ export function gatewayRpcCall(
 
       try {
         const msg = JSON.parse(data.toString());
-        console.log(`[gateway-rpc] << type=${msg.type} method=${msg.method || ''} event=${msg.event || ''} id=${(msg.id || '').toString().slice(0,8)} ok=${msg.ok ?? ''}`);
 
-        // Wait for connect response before sending the RPC call
-        if (msg.type === 'res' && (msg.method === 'connect' || msg.id === connectMsg.id)) {
-          console.log(`[gateway-rpc] Connect response: ok=${msg.ok}`, msg.ok ? '' : JSON.stringify(msg.error || msg));
+        // Step 1: Gateway sends connect.challenge — respond with connect
+        if (msg.type === 'event' && msg.event === 'connect.challenge') {
+          connectReqId = randomUUID();
+          const connectMsg = {
+            type: 'req',
+            id: connectReqId,
+            method: 'connect',
+            params: {
+              minProtocol: 3,
+              maxProtocol: 3,
+              client: {
+                id: 'openclaw-control-ui',
+                version: '0.1.0',
+                platform: 'web',
+                mode: 'webchat',
+                instanceId: randomUUID(),
+              },
+              role: 'operator',
+              scopes: ['operator.admin', 'operator.read', 'operator.write'],
+              ...(token ? { auth: { token } } : {}),
+            },
+          };
+          ws.send(JSON.stringify(connectMsg));
+          return;
+        }
+
+        // Step 2: Connect response — send the actual RPC request
+        if (msg.type === 'res' && connectReqId && msg.id === connectReqId) {
+          connectReqId = null;
           if (!msg.ok) {
             settled = true;
             cleanup();
-            reject(new Error(`Gateway connect failed: ${JSON.stringify(msg.error || msg)}`));
+            reject(new Error(`Gateway connect failed: ${msg.error?.message || JSON.stringify(msg.error)}`));
             return;
           }
-          // Connected — now send the actual RPC request
+          // Connected — send the RPC request
           ws.send(JSON.stringify({
             type: 'req',
             id: reqId,
@@ -140,12 +149,7 @@ export function gatewayRpcCall(
           return;
         }
 
-        // Also handle connect.challenge — just ignore and wait for connect response
-        if (msg.type === 'event' && msg.event === 'connect.challenge') {
-          return;
-        }
-
-        // Handle the RPC response
+        // Step 3: RPC response
         if (msg.type === 'res' && msg.id === reqId) {
           settled = true;
           cleanup();
@@ -159,10 +163,6 @@ export function gatewayRpcCall(
       } catch {
         // Ignore parse errors on other messages
       }
-    });
-
-    ws.on('unexpected-response', (_req, res) => {
-      console.error(`[gateway-rpc] Unexpected HTTP response: ${res.statusCode} ${res.statusMessage}`);
     });
 
     ws.on('error', (err) => {
@@ -189,19 +189,27 @@ export function gatewayRpcCall(
  * List top-level workspace files for an agent via gateway RPC.
  */
 export async function gatewayFilesList(agentId: string): Promise<GatewayFileEntry[]> {
-  const result = await gatewayRpcCall('agents.files.list', { agentId }) as { files?: GatewayFileEntry[] };
+  const result = await gatewayRpcCall('agents.files.list', { agentId }) as {
+    files?: GatewayFileEntry[];
+  };
   return result.files ?? [];
 }
 
 /**
  * Read a top-level workspace file via gateway RPC.
  * Returns null if the file is not found or unsupported.
+ *
+ * Gateway response shape: `{ agentId, workspace, file: { name, content, ... } }`
  */
 export async function gatewayFilesGet(agentId: string, name: string): Promise<GatewayFileWithContent | null> {
   try {
-    const result = await gatewayRpcCall('agents.files.get', { agentId, name }) as GatewayFileWithContent;
-    if (!result || result.missing) return null;
-    return result;
+    const result = await gatewayRpcCall('agents.files.get', { agentId, name }) as {
+      file?: GatewayFileWithContent;
+    } & GatewayFileWithContent;
+    // Extract from nested `file` field if present, otherwise use top-level
+    const file = result.file ?? result;
+    if (!file || file.missing) return null;
+    return file;
   } catch {
     return null;
   }

@@ -49,19 +49,29 @@ describe('gateway-rpc (WebSocket)', () => {
     vi.clearAllMocks();
   });
 
-  /** Set up a gateway mock that handles connect + one RPC call */
+  /** Set up a gateway mock that follows the real protocol:
+   *  1. On connection: send connect.challenge
+   *  2. Client sends connect → respond with ok
+   *  3. Client sends RPC → invoke handler */
   function mockGateway(rpcHandler: (method: string, params: unknown) => unknown) {
     onConnection = (ws) => {
+      // Step 1: Send challenge immediately on connect
+      ws.send(JSON.stringify({
+        type: 'event',
+        event: 'connect.challenge',
+        payload: { nonce: 'test-nonce', ts: Date.now() },
+      }));
+
       ws.on('message', (data) => {
         const msg = JSON.parse(data.toString());
 
         if (msg.method === 'connect') {
-          // Send connect response
-          ws.send(JSON.stringify({ type: 'res', id: msg.id, method: 'connect', ok: true, payload: {} }));
+          // Step 2: Accept the connect
+          ws.send(JSON.stringify({ type: 'res', id: msg.id, ok: true, payload: {} }));
           return;
         }
 
-        // RPC call — invoke handler
+        // Step 3: RPC call — invoke handler
         try {
           const result = rpcHandler(msg.method, msg.params);
           ws.send(JSON.stringify({ type: 'res', id: msg.id, ok: true, payload: result }));
@@ -96,12 +106,13 @@ describe('gateway-rpc (WebSocket)', () => {
     });
 
     it('rejects on timeout', async () => {
-      // Gateway never responds to the RPC call
+      // Gateway sends challenge + accepts connect, but never responds to RPC
       onConnection = (ws) => {
+        ws.send(JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'n', ts: Date.now() } }));
         ws.on('message', (data) => {
           const msg = JSON.parse(data.toString());
           if (msg.method === 'connect') {
-            ws.send(JSON.stringify({ type: 'res', id: msg.id, method: 'connect', ok: true, payload: {} }));
+            ws.send(JSON.stringify({ type: 'res', id: msg.id, ok: true, payload: {} }));
           }
           // Don't respond to the RPC call — let it timeout
         });
@@ -114,11 +125,12 @@ describe('gateway-rpc (WebSocket)', () => {
       let connectParams: Record<string, unknown> = {};
 
       onConnection = (ws) => {
+        ws.send(JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'n', ts: Date.now() } }));
         ws.on('message', (data) => {
           const msg = JSON.parse(data.toString());
           if (msg.method === 'connect') {
             connectParams = msg.params;
-            ws.send(JSON.stringify({ type: 'res', id: msg.id, method: 'connect', ok: true, payload: {} }));
+            ws.send(JSON.stringify({ type: 'res', id: msg.id, ok: true, payload: {} }));
           } else {
             ws.send(JSON.stringify({ type: 'res', id: msg.id, ok: true, payload: {} }));
           }
