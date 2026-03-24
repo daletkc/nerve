@@ -14,6 +14,21 @@ vi.mock('./config.js', () => ({
   },
 }));
 
+const { createDeviceBlockMock } = vi.hoisted(() => ({
+  createDeviceBlockMock: vi.fn(({ nonce, clientId, clientMode, role, scopes, token }) => ({
+    id: 'device-123',
+    publicKey: 'pubkey-123',
+    signature: `sig-${nonce}`,
+    signedAt: 1234567890,
+    nonce,
+    _debug: { clientId, clientMode, role, scopes, token },
+  })),
+}));
+
+vi.mock('./device-identity.js', () => ({
+  createDeviceBlock: createDeviceBlockMock,
+}));
+
 import {
   gatewayRpcCall,
   gatewayFilesList,
@@ -26,6 +41,7 @@ describe('gateway-rpc (persistent WebSocket)', () => {
 
   /** Handler for incoming RPC method calls (after connect handshake) */
   let rpcHandler: (method: string, params: unknown) => unknown;
+  let lastConnectParams: unknown = null;
 
   beforeAll(async () => {
     rpcHandler = () => ({});
@@ -45,6 +61,7 @@ describe('gateway-rpc (persistent WebSocket)', () => {
         const msg = JSON.parse(data.toString());
 
         if (msg.method === 'connect') {
+          lastConnectParams = msg.params;
           ws.send(JSON.stringify({ type: 'res', id: msg.id, ok: true, payload: {} }));
           return;
         }
@@ -69,6 +86,7 @@ describe('gateway-rpc (persistent WebSocket)', () => {
 
   beforeEach(() => {
     rpcHandler = () => ({});
+    lastConnectParams = null;
   });
 
   afterEach(() => {
@@ -76,6 +94,34 @@ describe('gateway-rpc (persistent WebSocket)', () => {
   });
 
   describe('gatewayRpcCall', () => {
+    it('injects device identity into the gateway connect handshake', async () => {
+      rpcHandler = () => ({ ok: true });
+
+      await gatewayRpcCall('test.method', { foo: 'bar' });
+
+      expect(createDeviceBlockMock).toHaveBeenCalledWith({
+        clientId: 'openclaw-control-ui',
+        clientMode: 'webchat',
+        role: 'operator',
+        scopes: ['operator.admin', 'operator.read', 'operator.write'],
+        token: 'test-token',
+        nonce: 'test-nonce',
+      });
+      expect(lastConnectParams).toMatchObject({
+        client: {
+          id: 'openclaw-control-ui',
+          mode: 'webchat',
+        },
+        auth: { token: 'test-token' },
+        device: {
+          id: 'device-123',
+          publicKey: 'pubkey-123',
+          signature: 'sig-test-nonce',
+          nonce: 'test-nonce',
+        },
+      });
+    });
+
     it('sends RPC request and returns payload', async () => {
       rpcHandler = (method, params) => {
         expect(method).toBe('test.method');

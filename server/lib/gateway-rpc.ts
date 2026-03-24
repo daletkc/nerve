@@ -14,6 +14,7 @@
 import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import { config } from './config.js';
+import { createDeviceBlock } from './device-identity.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -63,6 +64,37 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let connectPromise: Promise<void> | null = null;
 let connectResolve: (() => void) | null = null;
 
+function buildConnectParams(nonce: string) {
+  const clientId = 'openclaw-control-ui';
+  const clientMode = 'webchat';
+  const role = 'operator';
+  const scopes = ['operator.admin', 'operator.read', 'operator.write'];
+  const token = config.gatewayToken;
+
+  return {
+    minProtocol: 3,
+    maxProtocol: 3,
+    client: {
+      id: clientId,
+      version: '0.1.0',
+      platform: 'web',
+      mode: clientMode,
+      instanceId: `nerve-rpc-${randomUUID().slice(0, 8)}`,
+    },
+    role,
+    scopes,
+    auth: { token },
+    device: createDeviceBlock({
+      clientId,
+      clientMode,
+      role,
+      scopes,
+      token,
+      nonce,
+    }),
+  };
+}
+
 /** Send a raw message, ensuring the connection is ready. */
 function wsSend(data: string): boolean {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -105,25 +137,12 @@ function ensureConnection(): void {
       const msg = JSON.parse(data.toString());
 
       // Handle connect.challenge → send connect
-      if (msg.type === 'event' && msg.event === 'connect.challenge') {
+      if (msg.type === 'event' && msg.event === 'connect.challenge' && msg.payload?.nonce) {
         socket.send(JSON.stringify({
           type: 'req',
           id: '__connect__',
           method: 'connect',
-          params: {
-            minProtocol: 3,
-            maxProtocol: 3,
-            client: {
-              id: 'openclaw-control-ui',
-              version: '0.1.0',
-              platform: 'web',
-              mode: 'webchat',
-              instanceId: `nerve-rpc-${randomUUID().slice(0, 8)}`,
-            },
-            role: 'operator',
-            scopes: ['operator.admin', 'operator.read', 'operator.write'],
-            auth: { token: config.gatewayToken },
-          },
+          params: buildConnectParams(msg.payload.nonce),
         }));
         return;
       }
