@@ -298,8 +298,12 @@ function createGatewayRelay(
     connectSent = false;
     clearChallengeTimer();
 
+    // Inject gateway token as query param if configured and not already present
+    if (config.gatewayToken && !targetUrl.searchParams.has('token')) {
+    targetUrl.searchParams.set('token', config.gatewayToken);
+    }
     gwWs = new WebSocket(targetUrl.toString(), {
-      headers: { Origin: clientOrigin },
+    headers: { Origin: clientOrigin },
     });
 
     gwWs.on('pong', () => { gatewayAlive = true; });
